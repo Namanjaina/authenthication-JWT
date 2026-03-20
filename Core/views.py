@@ -113,11 +113,11 @@ This link will expire in 10 minutes.
             try:
                 # fail_silently=False rakhein taaki error dikhe debug ke waqt
                 email_message.send(fail_silently=False)
-                return redirect('password-reset-sent', reset_id=reset_obj.reset_id)
+                return redirect('password-reset-sent', reset_id=new_password_reset.reset_id)
             except Exception as e:
                 print(f"Email Error: {e}")
                 messages.error(request, "there was an error sending the email. Try again later.")
-                reset_obj.delete() # Cleanup
+                new_password_reset.delete() # Cleanup
                 return redirect('forgot-password')
         else:
             messages.error(request, "No account found with this email")
