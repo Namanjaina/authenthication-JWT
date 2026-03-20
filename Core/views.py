@@ -116,7 +116,7 @@ This link will expire in 10 minutes.
                 return redirect('password-reset-sent', reset_id=new_password_reset.reset_id)
             except Exception as e:
                 print(f"Email Error: {e}")
-                messages.error(request, "Email service mein dikkat hai. SMTP settings check karein.")
+                messages.error(request, "there was an error sending the email. Try again later.")
                 new_password_reset.delete() # Cleanup
                 return redirect('forgot-password')
         else:
