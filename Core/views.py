@@ -7,11 +7,22 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
-from .models import PasswordReset 
+from .models import PasswordReset
+import threading
+
+
+# 🔥 Async email send (IMPORTANT)
+def send_email_async(email_message):
+    try:
+        email_message.send(fail_silently=True)
+    except Exception as e:
+        print("Email Error:", e)
+
 
 @login_required
 def Home(request):
     return render(request, 'index.html')
+
 
 def RegisterView(request):
     if request.method == "POST":
@@ -21,34 +32,31 @@ def RegisterView(request):
         email = request.POST.get('email')
         password = request.POST.get('password')
 
-        user_data_has_error = False
-
         if User.objects.filter(username=username).exists():
-            user_data_has_error = True
             messages.error(request, "Username already exists")
+            return redirect('register')
 
         if User.objects.filter(email=email).exists():
-            user_data_has_error = True
             messages.error(request, "Email already exists")
+            return redirect('register')
 
         if len(password) < 5:
-            user_data_has_error = True
             messages.error(request, "Password must be at least 5 characters")
-
-        if user_data_has_error:
             return redirect('register')
-        else:
-            User.objects.create_user(
-                first_name=first_name,
-                last_name=last_name,
-                email=email, 
-                username=username,
-                password=password
-            )
-            messages.success(request, "Account created. Login now")
-            return redirect('login')
+
+        User.objects.create_user(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            username=username,
+            password=password
+        )
+
+        messages.success(request, "Account created successfully. Please login.")
+        return redirect('login')
 
     return render(request, 'register.html')
+
 
 def LoginView(request):
     if request.method == "POST":
@@ -57,37 +65,44 @@ def LoginView(request):
 
         user = authenticate(request, username=username, password=password)
 
-        if user is not None:
+        if user:
             login(request, user)
             return redirect('home')
         else:
-            messages.error(request, "Invalid login credentials")
+            messages.error(request, "Invalid credentials")
             return redirect('login')
 
     return render(request, 'login.html')
 
+
 def LogoutView(request):
     logout(request)
+    messages.success(request, "Logged out successfully")
     return redirect('login')
+
 
 def ForgotPassword(request):
     if request.method == "POST":
         email = request.POST.get('email')
 
-        # Check if user exists with this email
         user = User.objects.filter(email=email).first()
 
-        # Pehle check karein ki user exists karta hai ya nahi
-        if user is not None:
-            # Agar user mil gaya, tabhi PasswordReset object banayein
-            # Isse IntegrityError (NOT NULL constraint) nahi aayega
-            new_password_reset = PasswordReset.objects.create(user=user)
-            
-            password_reset_url = reverse('reset-password', kwargs={'reset_id': new_password_reset.reset_id})
-            full_password_reset_url = f'{request.scheme}://{request.get_host()}{password_reset_url}'
+        if user:
+            reset_obj = PasswordReset.objects.create(user=user)
 
-            email_body = f'Reset your password using the link below:\n\n{full_password_reset_url}'
-        
+            reset_url = reverse('reset-password', kwargs={'reset_id': reset_obj.reset_id})
+            full_url = f"{request.scheme}://{request.get_host()}{reset_url}"
+
+            email_body = f"""
+Hello {user.username},
+
+Click below link to reset your password:
+
+{full_url}
+
+This link will expire in 10 minutes.
+"""
+
             email_message = EmailMessage(
                 'Reset your password',
                 email_body,
@@ -101,63 +116,57 @@ def ForgotPassword(request):
                 return redirect('password-reset-sent', reset_id=new_password_reset.reset_id)
             except Exception as e:
                 print(f"Email Error: {e}")
-                messages.error(request, "There is an issue in email services. Please check SMTP settings.")
+                messages.error(request, "Email service mein dikkat hai. SMTP settings check karein.")
                 new_password_reset.delete() # Cleanup
                 return redirect('forgot-password')
         else:
-            # Agar email database mein nahi hai
-            messages.error(request, f"No account found with email '{email}'")
+            messages.error(request, "No account found with this email")
             return redirect('forgot-password')
 
     return render(request, 'forgot_password.html')
+
 
 def PasswordResetSent(request, reset_id):
     if PasswordReset.objects.filter(reset_id=reset_id).exists():
         return render(request, 'password_reset_sent.html')
     else:
-        messages.error(request, 'Invalid reset id')
+        messages.error(request, "Invalid reset link")
         return redirect('forgot-password')
+
 
 def ResetPassword(request, reset_id):
     try:
-        password_reset_id = PasswordReset.objects.get(reset_id=reset_id)
+        reset_obj = PasswordReset.objects.get(reset_id=reset_id)
+
+        # 🔥 Expiration check (10 min)
+        if timezone.now() > reset_obj.created_when + timezone.timedelta(minutes=10):
+            reset_obj.delete()
+            messages.error(request, "Reset link expired")
+            return redirect('forgot-password')
 
         if request.method == "POST":
             password = request.POST.get('password')
             confirm_password = request.POST.get('confirm_password')
 
-            passwords_have_error = False
-
             if password != confirm_password:
-                passwords_have_error = True
-                messages.error(request, 'Passwords do not match')
-
-            if len(password) < 5:
-                passwords_have_error = True
-                messages.error(request, 'Password must be at least 5 characters long')
-
-            expiration_time = password_reset_id.created_when + timezone.timedelta(minutes=10)
-
-            if timezone.now() > expiration_time:
-                passwords_have_error = True
-                messages.error(request, 'Reset link has expired')
-                password_reset_id.delete()
-                return redirect('forgot-password')
-
-            if not passwords_have_error:
-                user = password_reset_id.user
-                user.set_password(password)
-                user.save()
-
-                password_reset_id.delete()
-
-                messages.success(request, 'Password reset successfully. Please login.')
-                return redirect('login')
-            else:
+                messages.error(request, "Passwords do not match")
                 return redirect('reset-password', reset_id=reset_id)
 
+            if len(password) < 5:
+                messages.error(request, "Password must be at least 5 characters")
+                return redirect('reset-password', reset_id=reset_id)
+
+            user = reset_obj.user
+            user.set_password(password)
+            user.save()
+
+            reset_obj.delete()
+
+            messages.success(request, "Password reset successful. Login now.")
+            return redirect('login')
+
     except PasswordReset.DoesNotExist:
-        messages.error(request, 'Invalid or expired reset link')
+        messages.error(request, "Invalid or expired link")
         return redirect('forgot-password')
 
     return render(request, 'reset_password.html')
