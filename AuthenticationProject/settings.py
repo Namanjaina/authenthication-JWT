@@ -64,8 +64,9 @@ WSGI_APPLICATION = 'AuthenticationProject.wsgi.application'
 # --- DATABASE (Render Postgres Connection) ---
 DATABASES = {
     'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
-        conn_max_age=600
+        default=os.getenv('DATABASE_URL'), # Render se URL uthayega
+        conn_max_age=600,
+        ssl_require=True # Production ke liye zaroori hai
     )
 }
 
