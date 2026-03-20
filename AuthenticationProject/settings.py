@@ -4,18 +4,17 @@ from datetime import timedelta
 import dj_database_url
 from dotenv import load_dotenv
 
-# .env file se data load karne ke liye
+# .env file load karne ke liye
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Security: Inko GitHub pe nahi dikhana hai
+# Security
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key')
 
-# Render pe False ho jayega automatically agar aap environment variable set karenge
-DEBUG = os.getenv('DEBUG', 'True') == 'false'
+# IMPORTANT: Render Environment Variables mein DEBUG ki value 'false' (small letters) rakhein
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-# Render aur Localhost dono ke liye
 ALLOWED_HOSTS = ['*'] 
 
 INSTALLED_APPS = [
@@ -33,7 +32,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # Static files ke liye zaroori
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -63,7 +62,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'AuthenticationProject.wsgi.application'
 
-# --- DATABASE (Local pe SQLite, Render pe Postgres) ---
+# --- DATABASE (Render Postgres Connection) ---
 DATABASES = {
     'default': dj_database_url.config(
         default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
@@ -71,7 +70,7 @@ DATABASES = {
     )
 }
 
-# --- JWT SETTINGS ---
+# --- JWT & REST FRAMEWORK SETTINGS ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -99,24 +98,28 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# --- STATIC FILES (WhiteNoise configuration) ---
+# --- STATIC FILES (WhiteNoise) ---
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-# Static files compression
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- EMAIL CONFIG (Ab Variables se data uthayega) ---
+# --- EMAIL CONFIG (Recommended Port 587 for Render) ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 465
-EMAIL_USE_SSL = True
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER')
 
-# settings.py ke niche add karein
+# --- AUTH REDIRECTS ---
 LOGIN_URL = 'login' 
-LOGIN_REDIRECT_URL = 'home' # Login hone ke baad kahan jana hai
-LOGOUT_REDIRECT_URL = 'login' # Logout ke baad kahan jana hai
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'login'
+
+# CORS Settings for Frontend Integration
+CORS_ALLOW_ALL_ORIGINS = True
