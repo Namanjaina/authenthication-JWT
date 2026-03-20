@@ -101,7 +101,7 @@ def ForgotPassword(request):
                 return redirect('password-reset-sent', reset_id=new_password_reset.reset_id)
             except Exception as e:
                 print(f"Email Error: {e}")
-                messages.error(request, "Email service mein dikkat hai. SMTP settings check karein.")
+                messages.error(request, "There is an issue in email services. Please check SMTP settings.")
                 new_password_reset.delete() # Cleanup
                 return redirect('forgot-password')
         else:
